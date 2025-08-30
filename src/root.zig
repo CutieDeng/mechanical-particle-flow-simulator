@@ -83,10 +83,22 @@ pub const Machine = struct {
     activated: std.DynamicBitSetUnmanaged,
     todo_list: std.ArrayListUnmanaged(Index),
     todo_offset: usize,
+    p: i8,
+    pub fn init_p (m: *Machine, beta: f32) !void {
+        const raw_v = 1 - std.math.exp (-2 * beta);
+        const raw_v_2 = (raw_v - 0.5) * 255;
+        const raw_v_3 = std.math.floor(raw_v_2);
+        const raw_v_4 : i8 = @intFromFloat(raw_v_3);
+        m.p = raw_v_4;
+    }
+    pub fn init_values (m: *Machine) !void {
+        for (0..m.matrix_state.data_row) |r| {
+            for (0..m.matrix_state.data_col) |c| {
+                m.matrix_state.ref(r, c).?.@"0" = 1;
+            }
+        }
+    }
     pub fn step (m: *Machine) !void {
-        const raw_th : f32 = m.random.floatNorm(f32) * 255 - 128;
-        const raw_th2 : f32 = std.math.clamp (raw_th, -127, 127);
-        const th : i8 = @intFromFloat(raw_th2);
         const index_row_select = m.random.intRangeLessThan(usize, 0, m.matrix_state.data_row); 
         const index_col_select = m.random.intRangeLessThan(usize, 0, m.matrix_state.data_col);
         m.visitor.unsetAll();
@@ -94,9 +106,9 @@ pub const Machine = struct {
         m.todo_list.clearRetainingCapacity();
         m.visitor.set(index_row_select * m.matrix_state.data_col + index_col_select);
         try m.todo_list.append(m.allocator, .{ .row = index_row_select, .col = index_col_select, });
-        try step_inner(m, th);
+        try step_inner(m);
     }
-    fn step_inner (m: *Machine, th: i8) !void {
+    fn step_inner (m: *Machine) !void {
         if (m.todo_offset >= m.todo_list.items.len) {
             return ;
         }
@@ -113,7 +125,7 @@ pub const Machine = struct {
             .{ .col = col2, .row = row2, },
         };
         const st = m.matrix_state.ref(todo.row, todo.col).?;
-        if (st.is_activated(th)) {
+        if (m.random.intRangeLessThan(i8, -127, 127) < m.p) {
             st.revert();
         } else {
             return ;

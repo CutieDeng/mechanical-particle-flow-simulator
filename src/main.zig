@@ -19,9 +19,12 @@ pub fn main() !void {
         .activated = .{},
         .todo_list = .{},
         .todo_offset = undefined,
+        .p = undefined,
     };
     defer machine.deinit ();
     machine.visitor = try std.DynamicBitSetUnmanaged.initEmpty(a, row * col);
+    try machine.init_p (2.0);
+    try machine.init_values();
     try do_test (&machine);
 }
 
