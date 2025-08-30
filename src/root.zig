@@ -19,9 +19,6 @@ pub const State = struct {
         return .{ value };
     }
 
-    pub fn is_activated (s: This, other: i8) bool {
-        return s.val() >= other;
-    }
     pub fn revert (s: *This) void {
         s.@"0" = - s.@"0";
     }
@@ -84,6 +81,7 @@ pub const Machine = struct {
     todo_list: std.ArrayListUnmanaged(Index),
     todo_offset: usize,
     p: i8,
+    writer: ?*std.Io.Writer,
     pub fn init_p (m: *Machine, beta: f32) !void {
         const raw_v = 1 - std.math.exp (-2 * beta);
         const raw_v_2 = (raw_v - 0.5) * 255;
@@ -143,5 +141,15 @@ pub const Machine = struct {
         m.activated.deinit (m.allocator);
         m.todo_list.deinit (m.allocator);
         m.matrix_state.deinit (m.allocator);
+    }
+    pub fn write (m: *Machine) !void {
+        for (0..m.matrix_state.data_row) |r| {
+            for (0..m.matrix_state.data_col) |c| {
+                const e = m.matrix_state.ref (r, c).?.val();
+                if (m.writer) |output| {
+                    try output.writeByte(@bitCast(e));
+                }
+            }
+        }
     }
 };

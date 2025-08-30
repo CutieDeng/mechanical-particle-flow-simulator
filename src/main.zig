@@ -6,6 +6,8 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const a = gpa.allocator();
     defer _ = gpa.deinit();
+    const data_file = try std.fs.cwd().createFileZ("output.data", .{});
+    defer data_file.close();
     var random_raw = std.Random.DefaultPrng.init (@bitCast(std.time.milliTimestamp()));
     const random = random_raw.random();
     const row = 258;
@@ -20,23 +22,35 @@ pub fn main() !void {
         .todo_list = .{},
         .todo_offset = undefined,
         .p = undefined,
+        .writer = null,
     };
     defer machine.deinit ();
     machine.visitor = try std.DynamicBitSetUnmanaged.initEmpty(a, row * col);
     try machine.init_p (2.0);
     try machine.init_values();
+    const writer_buffer = try a.alloc (u8, 0x1000000);
+    defer a.free (writer_buffer);
+    var w = data_file.writer(writer_buffer);
+    machine.writer = &w.interface;
+
+    const start = std.time.milliTimestamp();
     try do_test (&machine);
+    try w.interface.flush();
+    const end = std.time.milliTimestamp();
+    std.debug.print ("cost milli time: {d} ms.\n", .{ end - start });
 }
 
 pub fn do_test (m: *lib.Machine) !void {
-    const STEP_CNT = 256 * 256 * 200;
-    const start = std.time.milliTimestamp();
+    const STEP_CNT = 256 * 256;
+    const INNER_STEP_CNT = 200;
     for (0..STEP_CNT) |i| {
+        for (0..INNER_STEP_CNT) |j| {
+            try m.step ();
+            _ = j;
+        }
+        try m.write();
         _ = i; // autofix
-        try m.step ();
     }
-    const end = std.time.milliTimestamp();
-    std.debug.print ("cost milli time: {d} ms.\n", .{ end - start });
 }
 
 const std = @import("std");
