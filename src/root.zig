@@ -122,9 +122,9 @@ pub const Machine = struct {
         }
     }
     pub fn step (m: *Machine) !void {
-        if (!m.random_judge()) {
-            return ;
-        }
+        // if (!m.random_judge()) {
+        //     return ;
+        // }
         const index_row_select = m.random.intRangeLessThan(usize, 0, m.matrix_state.data_row); 
         const index_col_select = m.random.intRangeLessThan(usize, 0, m.matrix_state.data_col);
         m.visitor.unsetAll();
@@ -165,10 +165,10 @@ pub const Machine = struct {
         inline for (nxts) |n| {
             const idx = n.row * m.matrix_state.data_col + n.col;
             if (!m.visitor.isSet(idx)) {
-                m.visitor.set(idx);
-                const st2 = m.matrix_state.ref(n.row, n.col).?;
-                if (st2.val() == m.init_val) {
-                    if (m.random_judge()) {
+                if (m.random_judge()) {
+                    m.visitor.set(idx);
+                    const st2 = m.matrix_state.ref(n.row, n.col).?;
+                    if (st2.val() == m.init_val) {
                         st2.revert();
                         try m.todo_list.append(m.allocator, n);
                     }
