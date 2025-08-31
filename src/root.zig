@@ -65,6 +65,32 @@ pub const MatrixState = struct {
     pub fn deinit (m: MatrixState, a: std.mem.Allocator) void {
         a.free(m.data[0..m.row * m.col * sub_size]);
     }
+    pub fn prettyPrint (m: MatrixState, output: *std.Io.Writer) !void {
+        try output.print("(matrix #:row {d} #:col {d}\n", .{ m.data_row, m.data_row });
+        for (0..m.data_row) |i| {
+            try output.print("\t", .{});
+            for (0..m.data_col) |j| {
+                if (j != 0) {
+                    try output.print(" ", .{});
+                }
+                try output.print("{d:2}", .{ m.ref(i, j).?.val() });
+            }
+            if (i + 1 == m.data_row) {
+                try output.print(")", .{});
+            }
+            try output.print("\n", .{});
+        }
+    }
+    pub fn sum (m: MatrixState) i64 {
+        var s: i64 = 0;
+        for (0..m.data_row) |i| {
+            for (0..m.data_col) |j| {
+                const t = m.unsafe_ref(i, j).@"0";
+                s += t;
+            }
+        }
+        return s;
+    }
 };
 
 const Index = struct {
@@ -82,17 +108,19 @@ pub const Machine = struct {
     todo_offset: usize,
     p: i8,
     writer: ?*std.Io.Writer,
+    init_val: i8,
     pub fn init_p (m: *Machine, beta: f32) !void {
         const raw_v = 1 - std.math.exp (-2 * beta);
         const raw_v_2 = (raw_v - 0.5) * 255;
         const raw_v_3 = std.math.floor(raw_v_2);
         const raw_v_4 : i8 = @intFromFloat(raw_v_3);
         m.p = raw_v_4;
+        std.debug.print ("actual p: {d}\n", .{ m.p });
     }
     pub fn init_values (m: *Machine) !void {
         for (0..m.matrix_state.data_row) |r| {
             for (0..m.matrix_state.data_col) |c| {
-                m.matrix_state.ref(r, c).?.@"0" = 1;
+                m.matrix_state.ref (r, c).?.@"0" = 1;
             }
         }
     }
@@ -103,30 +131,39 @@ pub const Machine = struct {
         m.todo_offset = 0;
         m.todo_list.clearRetainingCapacity();
         m.visitor.set(index_row_select * m.matrix_state.data_col + index_col_select);
+        m.init_val = m.matrix_state.ref (index_row_select, index_col_select).?.val();
         try m.todo_list.append(m.allocator, .{ .row = index_row_select, .col = index_col_select, });
-        try step_inner(m);
+        while (true) {
+            const need_repeat = try step_inner(m);
+            if (!need_repeat) {
+                break;
+            }
+        }
     }
-    fn step_inner (m: *Machine) !void {
+    fn step_inner (m: *Machine) !bool {
         if (m.todo_offset >= m.todo_list.items.len) {
-            return ;
+            return false;
         }
         const todo = m.todo_list.items[m.todo_offset];
         m.todo_offset += 1;
+        const col0, const row0 = .{ todo.col, todo.row };
         const row1 = if (todo.row == 0) m.matrix_state.data_row - 1 else todo.row - 1;
         const col1 = if (todo.col == 0) m.matrix_state.data_col - 1 else todo.col - 1;
         const row2 = if (todo.row == m.matrix_state.data_row - 1) 0 else todo.row + 1;
         const col2 = if (todo.col == m.matrix_state.data_col - 1) 0 else todo.col + 1;
         const nxts: [4] Index = .{ 
-            .{ .col = col1, .row = row1, },
-            .{ .col = col2, .row = row1, },
-            .{ .col = col1, .row = row2, },
-            .{ .col = col2, .row = row2, },
+            .{ .col = col0, .row = row1, },
+            .{ .col = col0, .row = row2, },
+            .{ .col = col1, .row = row0, },
+            .{ .col = col2, .row = row0, },
         };
         const st = m.matrix_state.ref(todo.row, todo.col).?;
-        if (m.random.intRangeLessThan(i8, -127, 127) < m.p) {
-            st.revert();
+        if (st.val() == m.init_val) {
+            if (m.random.intRangeLessThan(i8, -127, 127) <= m.p) {
+                st.revert();
+            }
         } else {
-            return ;
+            return true;
         }
         inline for (nxts) |n| {
             const idx = n.row * m.matrix_state.data_col + n.col;
@@ -135,6 +172,7 @@ pub const Machine = struct {
                 try m.todo_list.append(m.allocator, n);
             }
         }
+        return true;
     }
     pub fn deinit (m: *Machine) void {
         m.visitor.deinit (m.allocator);
