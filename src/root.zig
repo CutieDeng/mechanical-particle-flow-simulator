@@ -122,15 +122,15 @@ pub const Machine = struct {
         }
     }
     pub fn step (m: *Machine) !void {
+        if (!m.random_judge()) {
+            return ;
+        }
         const index_row_select = m.random.intRangeLessThan(usize, 0, m.matrix_state.data_row); 
         const index_col_select = m.random.intRangeLessThan(usize, 0, m.matrix_state.data_col);
         m.visitor.unsetAll();
         m.todo_offset = 0;
         m.todo_list.clearRetainingCapacity();
         m.visitor.set(index_row_select * m.matrix_state.data_col + index_col_select);
-        if (!m.random_judge()) {
-            return ;
-        }
         const st = m.matrix_state.ref (index_row_select, index_col_select).?;
         m.init_val = st.val();
         st.revert();

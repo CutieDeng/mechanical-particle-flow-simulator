@@ -4,7 +4,8 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const data_file = try std.fs.cwd().createFileZ("output.data", .{});
     defer data_file.close();
-    var random_raw = std.Random.DefaultPrng.init (@bitCast(std.time.milliTimestamp()));
+    // var random_raw = std.Random.DefaultPrng.init (@bitCast(std.time.milliTimestamp()));
+    var random_raw = std.Random.Sfc64.init(@bitCast(std.time.milliTimestamp()));
     const random = random_raw.random();
     const row = 8;
     const col = 8;
