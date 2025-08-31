@@ -106,15 +106,12 @@ pub const Machine = struct {
     activated: std.DynamicBitSetUnmanaged,
     todo_list: std.ArrayListUnmanaged(Index),
     todo_offset: usize,
-    p: i8,
+    p: f64,
     writer: ?*std.Io.Writer,
     init_val: i8,
-    pub fn init_p (m: *Machine, beta: f32) !void {
+    pub fn init_p (m: *Machine, beta: f64) !void {
         const raw_v = 1 - std.math.exp (-2 * beta);
-        const raw_v_2 = (raw_v - 0.5) * 255;
-        const raw_v_3 = std.math.floor(raw_v_2);
-        const raw_v_4 : i8 = @intFromFloat(raw_v_3);
-        m.p = raw_v_4;
+        m.p = raw_v;
         std.debug.print ("actual p: {d}\n", .{ m.p });
     }
     pub fn init_values (m: *Machine) !void {
@@ -131,7 +128,12 @@ pub const Machine = struct {
         m.todo_offset = 0;
         m.todo_list.clearRetainingCapacity();
         m.visitor.set(index_row_select * m.matrix_state.data_col + index_col_select);
-        m.init_val = m.matrix_state.ref (index_row_select, index_col_select).?.val();
+        if (!m.random_judge()) {
+            return ;
+        }
+        const st = m.matrix_state.ref (index_row_select, index_col_select).?;
+        m.init_val = st.val();
+        st.revert();
         try m.todo_list.append(m.allocator, .{ .row = index_row_select, .col = index_col_select, });
         while (true) {
             const need_repeat = try step_inner(m);
@@ -139,6 +141,9 @@ pub const Machine = struct {
                 break;
             }
         }
+    }
+    fn random_judge (m: Machine) bool {
+        return m.random.float(f64) <= m.p;
     }
     fn step_inner (m: *Machine) !bool {
         if (m.todo_offset >= m.todo_list.items.len) {
@@ -157,19 +162,17 @@ pub const Machine = struct {
             .{ .col = col1, .row = row0, },
             .{ .col = col2, .row = row0, },
         };
-        const st = m.matrix_state.ref(todo.row, todo.col).?;
-        if (st.val() == m.init_val) {
-            if (m.random.intRangeLessThan(i8, -127, 127) <= m.p) {
-                st.revert();
-            }
-        } else {
-            return true;
-        }
         inline for (nxts) |n| {
             const idx = n.row * m.matrix_state.data_col + n.col;
             if (!m.visitor.isSet(idx)) {
                 m.visitor.set(idx);
-                try m.todo_list.append(m.allocator, n);
+                const st2 = m.matrix_state.ref(n.row, n.col).?;
+                if (st2.val() == m.init_val) {
+                    if (m.random_judge()) {
+                        st2.revert();
+                        try m.todo_list.append(m.allocator, n);
+                    }
+                }
             }
         }
         return true;

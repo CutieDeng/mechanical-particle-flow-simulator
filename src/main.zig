@@ -33,8 +33,8 @@ pub fn main() !void {
         .data_file = &w.interface,
     };
 
-    try simulator_exec2 (&machine, ctx, 0.2);
-    // try simulator_exec2 (&machine, ctx, 0.5);
+    // try simulator_exec2 (&machine, ctx, 0.2);
+    try simulator_exec2 (&machine, ctx, 0.5);
     // try simulator_exec2 (&machine, ctx, 5);
 }
 
@@ -103,7 +103,6 @@ pub const Simulator = struct {
         const val = sum_var_f64 / @as(f64, @floatFromInt(element_sz));
         return val;
     }
-    
 };
 
 pub fn do_test (m: *lib.Machine) !void {
