@@ -194,3 +194,181 @@ pub const Machine = struct {
         }
     }
 };
+
+pub const World = struct {
+    matrix: std.DynamicBitSetUnmanaged,
+    row: u16,
+    col: u16,
+    a: std.mem.Allocator,
+    r: std.Random,
+    p_l: std.DynamicBitSetUnmanaged,
+    p_r: std.DynamicBitSetUnmanaged,
+    p_u: std.DynamicBitSetUnmanaged,
+    p_d: std.DynamicBitSetUnmanaged,
+    a_l: std.DynamicBitSetUnmanaged,
+    a_r: std.DynamicBitSetUnmanaged,
+    a_u: std.DynamicBitSetUnmanaged,
+    a_d: std.DynamicBitSetUnmanaged,
+    tmp: std.DynamicBitSetUnmanaged,
+    v: std.DynamicBitSetUnmanaged,
+    p: f64,
+    pub fn select(w: *World, pb: *std.DynamicBitSetUnmanaged, a: *std.DynamicBitSetUnmanaged, offset: usize, row: ?usize) !void {
+        a.setIntersection(pb.*);
+        var it = a.iterator(.{});
+        const sz = @as(usize, w.row) * @as(usize, w.col);
+        while (it.next()) |i| {
+            var i_2 = i + offset;
+            if (row) |r| {
+                const ic = i % r;
+                if (ic + offset >= r) {
+                    i_2 -= r;
+                }
+            } else if (i_2 >= sz) {
+                i_2 -= sz;
+            }
+            if (w.matrix.isSet(i_2)) {
+                w.a_l.set(i_2);
+                w.a_r.set(i_2);
+                w.a_u.set(i_2);
+                w.a_d.set(i_2);
+            }
+        }
+        w.v.setUnion(a.*);
+        pb.toggleSet(a.*);
+    }
+    pub fn prepare_step(w: *World) !void {
+        const sz = @as(usize, w.row) * @as(usize, w.col);
+        for (0..sz) |i| {
+            w.p_l.setValue(i, w.r.float(f64) < w.p);
+        }
+        for (0..sz) |i| {
+            w.p_r.setValue(i, w.r.float(f64) < w.p);
+        }
+        for (0..sz) |i| {
+            w.p_d.setValue(i, w.r.float(f64) < w.p);
+        }
+        for (0..sz) |i| {
+            w.p_u.setValue(i, w.r.float(f64) < w.p);
+        }
+    }
+    pub fn step(w: *World) !void {
+        w.tmp.unsetAll();
+        w.tmp.setUnion(w.a_l);
+        w.a_l.unsetAll();
+        try w.select(&w.p_l, &w.tmp, w.col - 1, w.col);
+        w.tmp.unsetAll();
+        w.tmp.setUnion(w.a_r);
+        w.a_r.unsetAll();
+        try w.select(&w.p_r, &w.tmp, 1, w.col);
+        w.tmp.unsetAll();
+        w.tmp.setUnion(w.a_d);
+        w.a_d.unsetAll();
+        try w.select(&w.p_d, &w.tmp, w.col, null);
+        w.tmp.unsetAll();
+        w.tmp.setUnion(w.a_u);
+        w.a_u.unsetAll();
+        try w.select(&w.p_u, &w.tmp, w.col * (w.row - 1), null);
+    }
+    pub fn wrap_step(w: *World) !void {
+        try w.pre_step_1();
+        try w.prepare_step(); 
+        while (true) {
+            try w.step();
+            if (w.is_end()) {
+                break;
+            }
+        }
+        w.matrix.toggleSet(w.v);
+    }
+    pub fn pre_step_1(w: *World) !void {
+        const idx = w.r.intRangeLessThan(usize, 0, @as(usize, w.row) * @as(usize, w.col));
+        w.a_l.unsetAll();
+        w.a_r.unsetAll();
+        w.a_d.unsetAll();
+        w.a_u.unsetAll();
+        w.a_l.set(idx);
+        w.a_r.set(idx);
+        w.a_d.set(idx);
+        w.a_u.set(idx);
+        if (!w.matrix.isSet(idx)) {
+            w.matrix.toggleAll();
+        }
+        w.v.unsetAll();
+    }
+    pub fn is_end(w: World) bool {
+        return w.a_l.findFirstSet() == null;
+    }
+    pub fn count(w: World) usize {
+        return w.matrix.count();
+    }
+    pub fn abs(w: World) usize {
+        const c = w.count();
+        const sz = @as(usize, w.row) * @as(usize, w.col);
+        const c2 = c * 2;
+        if (c2 >= sz) {
+            return c2 - sz;
+        } else {
+            return sz - c2;
+        }
+    }
+    pub fn init(row: u16, col: u16, a: std.mem.Allocator, r: std.Random, p: f64) !World {
+        const sz = @as(usize, row) * @as(usize, col);
+        var d0 = try std.DynamicBitSetUnmanaged.initEmpty(a, sz);
+        errdefer d0.deinit(a);
+        var d1 = try std.DynamicBitSetUnmanaged.initEmpty(a, sz);
+        errdefer d1.deinit(a);
+        var d2 = try std.DynamicBitSetUnmanaged.initEmpty(a, sz);
+        errdefer d2.deinit(a);
+        var d3 = try std.DynamicBitSetUnmanaged.initEmpty(a, sz);
+        errdefer d3.deinit(a);
+        var d4 = try std.DynamicBitSetUnmanaged.initEmpty(a, sz);
+        errdefer d4.deinit(a);
+        var d5 = try std.DynamicBitSetUnmanaged.initEmpty(a, sz);
+        errdefer d5.deinit(a);
+        var d6 = try std.DynamicBitSetUnmanaged.initEmpty(a, sz);
+        errdefer d6.deinit(a);
+        var d7 = try std.DynamicBitSetUnmanaged.initEmpty(a, sz);
+        errdefer d7.deinit(a);
+        var d8 = try std.DynamicBitSetUnmanaged.initEmpty(a, sz);
+        errdefer d8.deinit(a);
+        var d9 = try std.DynamicBitSetUnmanaged.initEmpty(a, sz);
+        errdefer d9.deinit(a);
+        var d10 = try std.DynamicBitSetUnmanaged.initEmpty(a, sz);
+        errdefer d10.deinit(a);
+        const w = World {
+            .matrix = d0,
+            .row = row,
+            .col = col,
+            .a = a,
+            .r = r,
+            .p_l = d1,
+            .p_r = d2,
+            .p_u = d3,
+            .p_d = d4,
+            .a_l = d5,
+            .a_r = d6,
+            .a_u = d7,
+            .a_d = d8,
+            .tmp = d9,
+            .v = d10,
+            .p = p,
+        };
+        return w;
+    }
+    pub fn post_init (w: *World) !void {
+        w.matrix.setAll();
+    }
+    pub fn deinit (w: *World) void {
+        w.matrix.deinit(w.a);
+        w.p_l.deinit(w.a);
+        w.p_r.deinit(w.a);
+        w.p_u.deinit(w.a);
+        w.p_d.deinit(w.a);
+        w.a_l.deinit(w.a);
+        w.a_r.deinit(w.a);
+        w.a_u.deinit(w.a);
+        w.a_d.deinit(w.a);
+        w.tmp.deinit(w.a);
+        w.v.deinit(w.a);
+    }
+};
